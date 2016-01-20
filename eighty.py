@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+from retrying import retry
 
 API_TOKEN = os.environ["EIGHTYLEGS_API"]
 
@@ -23,19 +24,19 @@ def get_url(url_name):
     return response.json()
 
 def create_urls(url_name, url_list):
-
-    def data_to_json_file(data, filename='temp.json'):
+    
+    def json_dump_file(data, filename='temp.json'):
         with open(filename, 'w') as outfile:
             json.dump(data, outfile, ensure_ascii=False)
         return filename
 
     try:    
-        data_path = data_to_json_file(data=url_list)
+        url_filepath = json_dump_file(url_list)
         url = "https://{api_token}:@api.80legs.com/v2/urllists/{url_name}".format(api_token=API_TOKEN, url_name=url_name)
-        data = open(data_path, "rb")
+        data = open(url_filepath, "rb")
         resp = requests.put(url, data=data, headers={"Content-Type": "application/octet-stream"})
     finally:
-        os.remove(data_path)
+        os.remove(url_filepath)
     return resp
 
 def delete_url(url_name):
@@ -52,7 +53,7 @@ def create_app(app_name, file_path):
     return requests.put(url, files=file, headers=headers)
 
 def delete_app(app_name):
-    return "https://{api_token}:@api.80legs.com/v2/apps/{app_name}".format(api_token=API_TOKEN, app_name=app_name)
+    return requests.delete("https://{api_token}:@api.80legs.com/v2/apps/{app_name}".format(api_token=API_TOKEN, app_name=app_name))
 
 def list_craws():
     response = requests.get("https://{api_token}:@api.80legs.com/v2/crawls".format(api_token=API_TOKEN))
@@ -70,28 +71,47 @@ def get_craw(craw_name):
 def kill_craw(craw_name):
     return requests.delete("https://{api_token}:@api.80legs.com/v2/crawls/{craw_name}".format(api_token=API_TOKEN, craw_name=craw_name))
 
-def get_result_s3path(craw_name):
-    results_resp = requests.get("https://{api_token}:@api.80legs.com/v2/results/{craw_name}".format(api_token=API_TOKEN, craw_name=craw_name))
-    return results_resp.json()[0]
-
-def get_result_data(craw_name, json_fix=True):
+def get_results_s3path(craw_name):
     craw_resp = get_craw(craw_name)
     if craw_resp['status'] != "COMPLETED":
         return "results not ready"
-    results_s3_path = get_result_s3path(craw_name)
-    results_data = requests.get(results_s3_path)
-    results_sl = results_data.json()
-    if json_fix:
-        return results_json_to_dict(results_sl)
+    results_resp = requests.get("https://{api_token}:@api.80legs.com/v2/results/{craw_name}".format(api_token=API_TOKEN, craw_name=craw_name))
+    return results_resp.json()[0]
+
+@retry(stop_max_attempt_number=2, wait_exponential_multiplier=1000, wait_exponential_max=10000)
+def download_file(url):
+    local_filename = url.split('/')[-1].split('?')[0]
+    r = requests.get(url, stream=True, timeout=3600)
+    with open(local_filename, 'wb') as f:
+        for chunk in r.iter_content(chunk_size=1024):
+            if chunk: # filter out keep-alive new chunks
+                f.write(chunk)
+                # f.flush()
+    return local_filename
+
+def load_json_file(path):
+    # data = []
+    with open(path) as f:
+        # for line in f:
+            # d = json.loads(line)
+        return json.load(f)
+
+def fix_json(craw_l):
+    craw_dl = []
+    for page in craw_l:
+        d = json.loads(page['result'])
+        d.update({'url': page['url']})
+        craw_dl.append(d)
+    return craw_dl
+
+def get_results_data(craw_name, parse_json=False):
+    craw_resp = get_craw(craw_name)
+    if craw_resp['status'] != "COMPLETED":
+        return "results not ready"
+    results_s3_path = get_results_s3path(craw_name)
+    results_local_path = download_file(results_s3_path)
+    craw_sl = load_json_file(results_local_path)
+    if parse_json:
+        return fix_json(craw_sl)
     else:
-        return results_sl
-    
-def results_json_to_dict(result_sl):
-    result_dl = []
-    for row in result_sl:
-        if 'result' in row:
-            try:
-                result_dl.append(json.loads(row['result']))
-            except:
-                pass 
-    return result_dl
+        return craw_sl
