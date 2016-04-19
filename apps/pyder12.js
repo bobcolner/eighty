@@ -38,9 +38,10 @@ var EightyApp = function() {
         tmp.parsely_type = $html.filter('meta[name="parsely-type"]').attr('content');
         tmp.parsely_pubdate = $html.filter('meta[name="parsely-pub-date"]').attr('content');
         tmp.parsely_author = $html.filter('meta[name="parsely-author"]').attr('content');
-        // tmp.parsely_page = $html.filter('meta[name="parsely-page"]').attr('content');        
         tmp.parsely_section = $html.filter('meta[name="parsely-section"]').attr('content');
-        tmp.parsely_tags = $html.filter('meta[name="parsely-tags"]').attr('content');        
+        tmp.parsely_tags = $html.filter('meta[name="parsely-tags"]').attr('content');
+        // tmp.parsely_page = $html.filter('meta[name="parsely-page"]').attr('content');
+        // tmp.parsely_metadata = $html.filter('meta[name="parsely-metadata"]').attr('content');
         // sailthrouh
         tmp.sailthru_author = $html.filter('meta[name="sailthru.author"]').attr('content');
         tmp.sailthru_date = $html.filter('meta[name="sailthru.date"]').attr('content');

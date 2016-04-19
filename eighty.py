@@ -139,7 +139,8 @@ def filter_dl(dl, field, value, test='eq', value2=None):
         return [ craw for craw in dl if craw[field] >= value and craw[field] < value2 ]
 
 def get_craw_s3path(craw_name): 
-    results_resp = requests.get("https://{api_token}:@api.80legs.com/v2/results/{craw_name}".format(api_token=API_TOKEN, craw_name=craw_name))
+    results_resp = requests.get("https://{api_token}:@api.80legs.com/v2/results/{craw_name}".format(
+        api_token=API_TOKEN, craw_name=craw_name))
     results_resp.raise_for_status()
     return results_resp.json()[0]
 
@@ -172,6 +173,10 @@ def stuck_craw_filter(craw):
         (craw['urls_pct_compleat'] >= 0.9):
         return True
     elif (craw['status'] == 'STARTED') and \
+        (craw['elasped_running'] >= 8) and \
+        (craw['urls_pct_compleat'] < 0.1):
+        return True
+    elif (craw['status'] == 'STARTED') and \
         (craw['elasped_running'] >= 12) and \
         (craw['urls_pct_compleat'] >= 0.8):
         return True
@@ -195,7 +200,7 @@ def done_craw_filter(craw):
     else:
         return False
 
-def find_craws(type='stuck', days_ago=30):
+def find_craws(type='stuck', days_ago=14):
     craw_l = list_fix_craws(days_ago)
     if type == 'stuck':
         return list(filter(stuck_craw_filter, craw_l))
